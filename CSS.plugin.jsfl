@@ -9,7 +9,7 @@ function getPluginInfo(lang)
 
 	pluginInfo = new Object();
 	pluginInfo.id = "CSS Keyframe Animations v1";
-	pluginInfo.name = "CSS Keyframe Animation";
+	pluginInfo.name = "CSS Keyframe Animations";
 	pluginInfo.ext = "css";
 	pluginInfo.capabilities = new Object();
 	pluginInfo.capabilities.canRotate = false;
@@ -23,92 +23,91 @@ function getPluginInfo(lang)
 
 function beginExport(meta)
 {
+	// initialize frames array
 	frames = [];
-	fl.trace("Starting export...");
+	fl.trace("** Export started **");
 	return "";
 }
 
 function frameExport(frame)
 {
+	// store frame for future use
 	frames.push( frame );
 	return  "";
 }
 
 function endExport(meta)
 {
-	/*
-	fl.trace("==== endExport");
-	fl.trace(meta.app);
-	fl.trace(meta.version);
-	fl.trace(meta.image);
-	fl.trace(meta.format);
-	fl.trace(meta.size.w);
-	fl.trace(meta.size.h);
-	fl.trace(meta.scale);
-	fl.trace("---- endExport");
+	var fps = fl.getDocumentDOM().frameRate,
+		totalFrames = frames.length,
+		startFrame,endFrame,
+		currentName,currentFrame,
+		numFrames,keyframes,
+		i = 0,
+		j,tmp,
+		output = "";
 
-	fl.trace("==== frameExport");
-	fl.trace(frame.id);
-	fl.trace(frame.frame.x);
-	fl.trace(frame.frame.y);
-	fl.trace(frame.frame.w);
-	fl.trace(frame.frame.h);
-	fl.trace(frame.offsetInSource.x);
-	fl.trace(frame.offsetInSource.y);
-	fl.trace(frame.sourceSize.w);
-	fl.trace(frame.sourceSize.h);
-	fl.trace(frame.rotated);
-	fl.trace(frame.trimmed);
-	fl.trace(frame.frameNumber);
-	fl.trace(frame.symbolName);
-	fl.trace(frame.frameLabel);
-	fl.trace(frame.lastFrameLabel);
-	fl.trace("---- frameExport");
-	*/
+	while(i<totalFrames) {
+		
+		//=== store start frame and get symbol name
+		startFrame = i;
+		currentName = frames[startFrame].symbolName;
 
+		fl.trace("Processing symbol \"" + currentName + "\"");
+		
+		//=== find end frame
+		for(endFrame=startFrame+1;endFrame<totalFrames;endFrame++){
+			if ( currentName != frames[endFrame].symbolName ) {
+				--endFrame;
+				break;
+			}
+		}
 
-	var numFrames = frames.length;
-	var fps = fl.getDocumentDOM().frameRate;
-	var i,t,kf;
-	var s = "";
-	var f = frames[0];
-	var name = f.symbolName.replace(" ","");
+		//=== export symbol animtion
+		numFrames = endFrame - startFrame;
+		currentFrame = frames[startFrame];
+		currentName = currentName.replace(" ",""); // todo: remove more invalid characters ?
+		tmp = (numFrames / fps).toFixed(2);
+		
+		//= create class
+		output +=  "." + currentName + " {\n";
+		output +=  "\tbackground: url(" + meta.image + ");\n";
+		output +=  "\tdisplay: block;\n";
+		output +=  "\twidth: " + currentFrame.frame.w + "px;\n";
+		output +=  "\theight: " + currentFrame.frame.h + "px;\n";
+		output +=  "\tmargin: 0;\n";
+		output +=  "\tpadding: 0;\n";
+		output +=  "\t-webkit-animation: " + currentName + " " + tmp + "s infinite;\n";
+		output +=  "\t-moz-animation: " + currentName + " " + tmp + "s infinite;\n";
+		output +=  "\t-ms-animation: " + currentName + " " + tmp + "s infinite;\n";
+		output +=  "\t-o-animation: " + currentName + " " + tmp + "s infinite;\n";
+		output +=  "\tanimation: " + currentName + " " + tmp + "s infinite;\n";
+		output +=  "}\n";
+		output +=  "\n";
 
-	// create class for applying animation
-	s += "." + name + " {\n";
-	s += "\tbackground: url(" + meta.image + ");\n";
-	s += "\tdisplay: block;\n";
-	s += "\twidth: " + f.frame.w + "px;\n";
-	s += "\theight: " + f.frame.h + "px;\n";
-	s += "\tmargin: 0;\n";
-	s += "\tpadding: 0;\n";
-	s += "\t-webkit-animation: " + name + " " + (numFrames / fps).toFixed(2) + "s infinite;\n";
-	s += "\t-moz-animation: " + name + " " + (numFrames / fps).toFixed(2) + "s infinite;\n";
-	s += "\t-ms-animation: " + name + " " + (numFrames / fps).toFixed(2) + "s infinite;\n";
-	s += "\t-o-animation: " + name + " " + (numFrames / fps).toFixed(2) + "s infinite;\n";
-	s += "\tanimation: " + name + " " + (numFrames / fps).toFixed(2) + "s infinite;\n";
-	s += "}\n";
-	s += "\n";
+		//= gather keyframes
+		keyframes = "keyframes " + currentName + " {\n";
+		for(j=0;j<numFrames;j++){
+			currentFrame = frames[j+startFrame];
+			keyframes += "\t" + (Math.round(10000/numFrames*j)/100) + "%, ";
+			tmp = Math.round(10000/numFrames*(j+1))/100;
+			keyframes += ((j==numFrames-1)?tmp:(tmp-0.01).toFixed(2)) + "% ";
+			keyframes += "{ background-position: " + (-currentFrame.frame.x) + "px " + (-currentFrame.frame.y) + "px; }\n";
+		}
+		keyframes += "}\n\n";
 
-	// gather keyframes
-	kf = "keyframes " + name + " {\n";
-	for(i=0;i<numFrames;i++){
-		f = frames[i];
-		kf += "\t" + (Math.round(10000/numFrames*i)/100) + "%, ";
-		t = Math.round(10000/numFrames*(i+1))/100;
-		kf += ((i==numFrames-1)?t:(t-0.01).toFixed(2)) + "% ";
-		kf += "{ background-position: " + -f.frame.x + "px " + -f.frame.y + "px; }\n";
+		//= duplicate keyframes using vendor prefixes
+		output += "@-webkit-" + keyframes;
+		output += "@-moz-" + keyframes;
+		output += "@-ms-" + keyframes;
+		output += "@-o-" + keyframes;
+		output += "@" + keyframes;
+
+		//=== iterate
+		i = endFrame + 1;
 	}
-	kf += "}\n\n";
 
-	// duplicate keyframes using vendor prefixes
-	s += "@-webkit-" + kf;
-	s += "@-moz-" + kf;
-	s += "@-ms-" + kf;
-	s += "@-o-" + kf;
-	s += "@" + kf;
+	fl.trace("** Export finished **");
 
-	fl.trace("...DONE");
-
-	return s;
+	return output;
 }
